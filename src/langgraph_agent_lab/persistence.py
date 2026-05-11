@@ -8,8 +8,7 @@ from typing import Any
 def build_checkpointer(kind: str = "memory", database_url: str | None = None) -> Any | None:
     """Return a LangGraph checkpointer.
 
-    TODO(student): add SQLite/Postgres support for the extension track.
-    The starter uses MemorySaver so the lab can run without infrastructure.
+    Optional persistence is available for SQLite and Postgres adapters.
     """
     if kind == "none":
         return None
@@ -19,14 +18,19 @@ def build_checkpointer(kind: str = "memory", database_url: str | None = None) ->
         return MemorySaver()
     if kind == "sqlite":
         try:
+            import sqlite3
             from langgraph.checkpoint.sqlite import SqliteSaver
         except ImportError as exc:
             raise RuntimeError("SQLite checkpointer requires: pip install langgraph-checkpoint-sqlite") from exc
-        return SqliteSaver.from_conn_string(database_url or "checkpoints.db")
+        db_path = database_url or "checkpoints.db"
+        conn = sqlite3.connect(db_path, check_same_thread=False)
+        return SqliteSaver(conn=conn)
     if kind == "postgres":
         try:
             from langgraph.checkpoint.postgres import PostgresSaver
         except ImportError as exc:
             raise RuntimeError("Postgres checkpointer requires: pip install langgraph-checkpoint-postgres") from exc
-        return PostgresSaver.from_conn_string(database_url or "")
+        if not database_url:
+            raise ValueError("Postgres database_url is required for postgres checkpointer")
+        return PostgresSaver.from_conn_string(database_url)
     raise ValueError(f"Unknown checkpointer kind: {kind}")
